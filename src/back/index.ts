@@ -531,8 +531,12 @@ async function execProcess(proc: IBackProcessInfo, sync?: boolean): Promise<void
     content: `Executing "${proc.filename}" ${stringifyArray(proc.arguments)} in "${proc.path}"`
   });
   try {
-    if (sync) { child_process.execFileSync(  proc.filename, proc.arguments, { cwd: cwd }); }
-    else      { await child_process.execFile(proc.filename, proc.arguments, { cwd: cwd }); }
+    if (sync) {
+      child_process.execFileSync(proc.filename, proc.arguments, { cwd: cwd });
+    } else {
+      const childProc = child_process.execFile(proc.filename, proc.arguments, { cwd: cwd });
+      await awaitEvents(childProc, ['exit', 'error']);
+    }
   } catch (error) {
     log(state, {
       source: SERVICES_SOURCE,
@@ -565,4 +569,33 @@ function getFileExtension(filename: string): string {
     }
   }
   return '';
+}
+
+/**
+ * Create a promise that resolves when the emitter emits one of the given events.
+ * @param emitter Emitter to listen on.
+ * @param events Events that causes the promise to resolve.
+ */
+function awaitEvents(emitter: EventEmitter, events: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // @TODO Maybe add a timeout that rejects it?
+    const safeEvents = [ ...events ]; // This is a copy in case another function edits the events array after calling this
+
+    let isResolved = false;
+    const listener = () => {
+      if (!isResolved) {
+        isResolved = true;
+
+        for (let event of safeEvents) {
+          emitter.off(event, listener);
+        }
+
+        resolve();
+      }
+    };
+
+    for (let event of safeEvents) {
+      emitter.on(event, listener);
+    }
+  });
 }
