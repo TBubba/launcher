@@ -23,11 +23,12 @@ function getArgs(): Init {
     const arg = args[i];
     const eqIndex = arg.indexOf('=');
     if (eqIndex >= 0) {
-      const name: keyof InitArgs | string = arg.substr(0, eqIndex);
+      const name = arg.substr(0, eqIndex);
       const value = arg.substr(eqIndex + 1);
       switch (name) {
         // String value
         case 'connect-remote':
+        case 'plugin':
           init.args[name] = value;
           lastArgIndex = i;
           break;
@@ -36,6 +37,12 @@ function getArgs(): Init {
         case 'back-only':
         case 'flash':
           init.args[name] = Coerce.strToBool(value);
+          lastArgIndex = i;
+          break;
+        // Numerical value
+        case 'width':
+        case 'height':
+          init.args[name] = Coerce.num(value);
           lastArgIndex = i;
           break;
       }

@@ -1,15 +1,20 @@
-import { APP_TITLE } from '@shared/constants';
+import { ConfigFile } from '@back/ConfigFile';
+import { CONFIG_FILENAME } from '@back/constants';
 import { app, BrowserWindow, session, shell } from 'electron';
+import * as fs from 'fs';
 import * as path from 'path';
 import { Init } from './types';
+import { getMainFolderPath } from './Util';
 
 type State = {
   window?: BrowserWindow;
+  plugin: string;
 }
 
 export function flash(init: Init): void {
   const state: State = {
     window: undefined,
+    plugin: init.args.plugin || 'flash',
   };
 
   startup();
@@ -22,8 +27,27 @@ export function flash(init: Init): void {
     app.once('web-contents-created', onAppWebContentsCreated);
     app.on('activate', onAppActivate);
 
-    const flashPath = path.join(process.cwd(), 'flash.dll');
-    app.commandLine.appendSwitch('ppapi-flash-path', flashPath);
+    const installed = fs.existsSync('./.installed');
+    const mainFolderPath = getMainFolderPath(installed);
+
+    const config = ConfigFile.readOrCreateFileSync(path.join(mainFolderPath, CONFIG_FILENAME));
+
+    let extension = '';
+    switch (process.platform) {
+      case 'win32':
+        extension = '.dll';
+        break;
+      case 'linux':
+        extension = '.so';
+        break;
+      case 'darwin':
+        // @TODO Find out the extension on mac
+        break;
+      default:
+        console.error(`No plguin file extension is assigned to the current operating system (platform: "${process.platform}").`);
+        break;
+    }
+    app.commandLine.appendSwitch('ppapi-flash-path', path.resolve(config.flashpointPath, 'Plugins', state.plugin + extension));
   }
 
   function onAppReady(): void {
@@ -70,8 +94,11 @@ export function flash(init: Init): void {
 
   function createFlashWindow(): BrowserWindow {
     const window = new BrowserWindow({
-      title: APP_TITLE,
+      title: `Flashpoint Flash Player (${state.plugin})`,
       icon: path.join(__dirname, '../window/images/icon.png'),
+      useContentSize: true,
+      width: init.args.width,
+      height: init.args.height,
       webPreferences: {
         nodeIntegration: false,
         plugins: true,
@@ -81,7 +108,7 @@ export function flash(init: Init): void {
     window.setMenu(null); // Remove the menu bar
     window.loadURL(init.rest); // and load the index.html of the app.
 
-    //window.webContents.openDevTools();
+    // window.webContents.openDevTools();
 
     return window;
   }

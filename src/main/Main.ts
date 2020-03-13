@@ -5,7 +5,7 @@ import { APP_TITLE } from '@shared/constants';
 import { WindowIPC } from '@shared/interfaces';
 import { InitRendererChannel, InitRendererData } from '@shared/IPC';
 import { IAppPreferencesData } from '@shared/preferences/interfaces';
-import { Coerce } from '@shared/utils/Coerce';
+import { createErrorProxy } from '@shared/Util';
 import { ChildProcess, fork } from 'child_process';
 import { randomBytes } from 'crypto';
 import { app, BrowserWindow, dialog, ipcMain, IpcMainEvent, session, shell, WebContents } from 'electron';
@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
 import * as WebSocket from 'ws';
-import { Init, InitArgs } from './types';
+import { Init } from './types';
 import * as Util from './Util';
 
 const readFile = promisify(fs.readFile);
@@ -35,6 +35,8 @@ type MainState = {
   _sentLocaleCode: boolean;
   /** If the main is about to quit. */
   isQuitting: boolean;
+  /** Path of the folder containing the config and preferences files. */
+  mainFolderPath: string;
 }
 
 export function main(init: Init): void {
@@ -51,6 +53,7 @@ export function main(init: Init): void {
     backProc: undefined,
     _sentLocaleCode: false,
     isQuitting: false,
+    mainFolderPath: createErrorProxy('mainFolderPath'),
   };
 
   startup();
@@ -74,10 +77,13 @@ export function main(init: Init): void {
     // ---- Initialize ----
     // Check if installed
     let p = exists('./.installed')
-    .then(exists => { state._installed = exists; })
+    .then(exists => {
+      state._installed = exists;
+      state.mainFolderPath = Util.getMainFolderPath(state._installed);
+    })
     // Load version number
     .then(() => new Promise(resolve => {
-      fs.readFile(path.join(getMainFolderPath(), '.version'), (error, data) => {
+      fs.readFile(path.join(state.mainFolderPath, '.version'), (error, data) => {
         state._version = (data)
           ? parseInt(data.toString().replace(/[^\d]/g, ''), 10) // (Remove all non-numerical characters, then parse it as a string)
           : -1; // (Version not found error code)
@@ -87,7 +93,7 @@ export function main(init: Init): void {
     // Load or generate secret
     .then(async () => {
       if (init.args['connect-remote'] || init.args['host-remote'] || init.args['back-only']) {
-        const secretFilePath = path.join(getMainFolderPath(), 'secret.txt');
+        const secretFilePath = path.join(state.mainFolderPath, 'secret.txt');
         try {
           state._secret = await readFile(secretFilePath, { encoding: 'utf8' });
         } catch (e) {
@@ -125,7 +131,7 @@ export function main(init: Init): void {
         }
         // Send initialize message
         const msg: BackInitArgs = {
-          configFolder: getMainFolderPath(),
+          configFolder: state.mainFolderPath,
           secret: state._secret,
           isDev: Util.isDev,
           // On windows you have to wait for app to be ready before you call app.getLocale() (so it will be sent later)
@@ -298,14 +304,6 @@ export function main(init: Init): void {
     });
   }
 
-  function getMainFolderPath() {
-    return state._installed
-      ? path.join(app.getPath('appData'), 'flashpoint-launcher') // Installed
-      : Util.isDev
-        ? process.cwd() // Dev
-        : path.dirname(app.getPath('exe')); // Portable
-  }
-
   function createMainWindow(): BrowserWindow {
     if (!state.preferences) { throw new Error('Preferences must be set before you can open a window.'); }
     if (!state.config)      { throw new Error('Configs must be set before you can open a window.'); }
@@ -373,53 +371,6 @@ export function main(init: Init): void {
   }
 
   /**
-   * Type of the event emitted by BrowserWindow for the "maximize" and "unmaximize" events.
-   * This type is not defined by Electron, so I guess I have to do it here instead.
-   */
-  type BrowserWindowEvent = {
-    preventDefault: () => void;
-    sender: WebContents;
-  }
-
-  function getArgs(): Init {
-    const init: Init = {
-      args: {},
-      rest: '',
-    };
-
-    const args = process.argv.slice(2);
-    let lastArgIndex = -1;
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
-      const eqIndex = arg.indexOf('=');
-      if (eqIndex >= 0) {
-        const name: keyof InitArgs | string = arg.substr(0, eqIndex);
-        const value = arg.substr(eqIndex + 1);
-        switch (name) {
-          // String value
-          case 'connect-remote':
-            init.args[name] = value;
-            lastArgIndex = i;
-            break;
-          // Boolean value
-          case 'host-remote':
-          case 'back-only':
-          case 'flash':
-            init.args[name] = Coerce.strToBool(value);
-            lastArgIndex = i;
-            break;
-        }
-      }
-    }
-
-    init.rest = args.slice(lastArgIndex + 1).join(' ');
-
-    console.log(init); // @DEBUG
-
-    return init;
-  }
-
-  /**
    * Resolves/Rejects when the wrapped promise does. Rejects if the timeout happens before that.
    * @param promise Promise to wrap.
    * @param ms Time to wait before timing out (in ms).
@@ -440,4 +391,13 @@ export function main(init: Init): void {
   }
 
   function noop() {}
+}
+
+/**
+ * Type of the event emitted by BrowserWindow for the "maximize" and "unmaximize" events.
+ * This type is not defined by Electron, so I guess I have to do it here instead.
+ */
+type BrowserWindowEvent = {
+  preventDefault: () => void;
+  sender: WebContents;
 }
