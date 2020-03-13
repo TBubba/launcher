@@ -272,10 +272,13 @@ export function main(init: Init): void {
   function onAppWebContentsCreated(event: Electron.Event, webContents: Electron.WebContents): void {
     // Open links to web pages in the OS-es default browser
     // (instead of navigating to it with the electron window that opened it)
-    webContents.on('will-navigate', (event, navigationUrl) => {
+    webContents.on('will-navigate', onNewPage);
+    webContents.on('new-window', onNewPage);
+
+    function onNewPage(event: Electron.Event, navigationUrl: string): void {
       event.preventDefault();
       shell.openExternal(navigationUrl);
-    });
+    }
   }
 
   function onAppActivate(): void {
