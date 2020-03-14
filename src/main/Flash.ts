@@ -1,11 +1,10 @@
 import { ConfigFile } from '@back/ConfigFile';
 import { CONFIG_FILENAME } from '@back/constants';
 import { IAppConfigData } from '@shared/config/interfaces';
+import { FlashInitChannel, FlashInitData } from '@shared/IPC';
 import { createErrorProxy } from '@shared/Util';
-import { app, BrowserWindow, session, shell, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, IpcMainEvent, session, shell } from 'electron';
 import * as fs from 'fs-extra';
-import * as http from 'http';
-import * as mime from 'mime';
 import * as path from 'path';
 import { Init } from './types';
 import { getMainFolderPath } from './Util';
@@ -13,20 +12,18 @@ import { getMainFolderPath } from './Util';
 type State = {
   window?: BrowserWindow;
   plugin: string;
+  entry: string;
   mainFolderPath: string;
   config: IAppConfigData;
-  httpProxy: http.Server;
-  httpProxyPort: number;
 }
 
 export function flash(init: Init): void {
   const state: State = {
     window: undefined,
     plugin: init.args.plugin || 'flash',
+    entry: init.rest,
     mainFolderPath: createErrorProxy('mainFolderPath'),
     config: createErrorProxy('config'),
-    httpProxy: new http.Server(onHttpServerRequest),
-    httpProxyPort: -1,
   };
 
   startup();
@@ -38,6 +35,8 @@ export function flash(init: Init): void {
     app.once('window-all-closed', onAppWindowAllClosed);
     app.once('web-contents-created', onAppWebContentsCreated);
     app.on('activate', onAppActivate);
+
+    ipcMain.on(FlashInitChannel, onInit);
 
     const installed = fs.existsSync('./.installed');
     state.mainFolderPath = getMainFolderPath(installed);
@@ -59,30 +58,17 @@ export function flash(init: Init): void {
         break;
     }
     app.commandLine.appendSwitch('ppapi-flash-path', path.resolve(state.config.flashpointPath, 'Plugins', state.plugin + extension));
-
-    // Start HTTP proxy
-    listenHttpServer(state.httpProxy, 22501, 22599)
-    .then(port => { state.httpProxyPort = port; })
-    .catch(error => { console.error(error); });
   }
 
   function onAppReady(): void {
     if (!session.defaultSession) { throw new Error('Default session is missing!'); }
-
-    if (state.httpProxyPort === -1) {
-      dialog.showErrorBox(
-        'Proxy error!',
-        'If you see this error, please take a screenshot of this window and send it to the Flashpoint staff!\n\n'+
-        'The application was ready before the proxy has started. This will cause the flash application to use the incorrect proxy settings.'
-      );
-    }
 
     // Reject all permission requests since we don't need any permissions.
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => callback(false));
 
     session.defaultSession.setProxy({
       pacScript: '',
-      proxyRules: `127.0.0.1:${state.httpProxyPort}`,
+      proxyRules: '127.0.0.1:22500', // @TODO Make the proxy not hard coded?
       proxyBypassRules: '',
     });
 
@@ -119,6 +105,13 @@ export function flash(init: Init): void {
     if (!state.window) { createFlashWindow(); }
   }
 
+  function onInit(event: IpcMainEvent): void {
+    const data: FlashInitData = {
+      entry: state.entry,
+    };
+    event.returnValue = data;
+  }
+
   function createFlashWindow(): BrowserWindow {
     const window = new BrowserWindow({
       title: `Flashpoint Flash Player (${state.plugin})`,
@@ -127,106 +120,16 @@ export function flash(init: Init): void {
       width: init.args.width,
       height: init.args.height,
       webPreferences: {
+        preload: path.resolve(__dirname, './FlashWindowPreload.js'),
         nodeIntegration: false,
         plugins: true,
-        sandbox: true,
       },
     });
     window.setMenu(null); // Remove the menu bar
-    window.loadURL(init.rest); // and load the index.html of the app.
+    window.loadFile(path.join(__dirname, '../window/flash_index.html'));
 
     // window.webContents.openDevTools();
 
     return window;
   }
-
-  function onHttpServerRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
-    let url: URL | undefined;
-    let error: Error | undefined;
-
-    try { url = new URL(req.url || ''); }
-    catch (e) { error = e; }
-
-    if (url) {
-      const basePath = path.resolve(state.config.flashpointPath, 'Server/htdocs');
-      const filePath = path.join(basePath, decodeURI(url.hostname), decodeURI(url.pathname));
-
-      if (filePath.startsWith(basePath + path.sep) && (req.method === 'GET' || req.method === 'HEAD')) {
-        fs.stat(filePath, (error, stats) => {
-          if (error || stats && !stats.isFile()) {
-            res.writeHead(404);
-            res.end();
-          } else {
-            res.writeHead(200, {
-              'Content-Type': mime.getType(path.extname(filePath)) || '',
-              'Content-Length': stats.size,
-            });
-            if (req.method === 'GET') {
-              const stream = fs.createReadStream(filePath);
-              stream.on('error', error => {
-                console.warn(`File server failed to stream file. ${error}`);
-                stream.destroy(); // Calling "destroy" inside the "error" event seems like it could case an endless loop (although it hasn't thus far)
-                if (!res.finished) { res.end(); }
-              });
-              stream.pipe(res);
-            } else {
-              res.end();
-            }
-          }
-        });
-      } else {
-        res.writeHead(404);
-        res.end();
-      }
-    } else {
-      res.statusCode = 500;
-      res.end();
-    }
-  }
-}
-
-/**
- * Make a http server listen at the first available port between minPort and maxPort (inclusive).
- * @param server Server that will listen.
- * @param minPort Minimum port number (inclusive).
- * @param maxPort Maximum port number (inclusive).
- * @returns A promise that resolves when it starts listening contining the port used; or a rejection with the error.
- */
-function listenHttpServer(server: http.Server, minPort: number, maxPort: number): Promise<number> {
-  return new Promise((resolve, reject) => {
-    let port = minPort - 1;
-    server.once('listening', onceListening);
-    server.on('error', onError);
-    tryListen();
-
-    function onceListening() {
-      done(undefined);
-    }
-
-    function onError(error: Error) {
-      if ((error as any).code === 'EADDRINUSE') {
-        tryListen();
-      } else {
-        done(error);
-      }
-    }
-
-    function tryListen() {
-      if (port++ < maxPort) {
-        server.listen(port);
-      } else {
-        done(new Error(`All attempted ports are already in use (Ports: ${minPort} - ${maxPort}).`));
-      }
-    }
-
-    function done(error: Error | undefined) {
-      server.off('listening', onceListening);
-      server.off('error', onError);
-      if (error) {
-        reject(error);
-      } else {
-        resolve(port);
-      }
-    }
-  });
 }
