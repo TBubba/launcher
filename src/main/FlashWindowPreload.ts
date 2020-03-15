@@ -5,8 +5,14 @@ const data: FlashInitData = electron.ipcRenderer.sendSync(FlashInitChannel);
 
 document.addEventListener('DOMContentLoaded', () => {
   const object = document.createElement('object');
+
   object.setAttribute('type', 'application/x-shockwave-flash');
   object.setAttribute('data', data.entry);
+
+  object.appendChild(createParam('allowscriptaccess', 'always'));
+  object.appendChild(createParam('allowfullscreen', 'true'));
+  object.appendChild(createParam('allowfullscreeninteractive', 'true'));
+  object.appendChild(createParam('allownetworkingmode', 'all'));
   object.appendChild(createParam('wmode', 'direct'));
 
   document.body.appendChild(object);
