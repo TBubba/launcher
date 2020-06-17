@@ -1,8 +1,8 @@
 import { LangContext } from '@renderer/util/lang';
-import { MetaEditFlags } from '@shared/MetaEdit';
 import { LangContainer } from '@shared/lang';
+import { MetaEditFlags } from '@shared/MetaEdit';
 import * as React from 'react';
-import * as ReactDOM from 'react-dom';
+import { FullscreenOverlay } from './FullscreenOverlay';
 
 export type MetaEditExporterConfirmData = {
   id: string;
@@ -21,14 +21,6 @@ type MetaEditExporterProps = {
 export function MetaEditExporter(props: MetaEditExporterProps) {
   const strings = React.useContext(LangContext);
   const [properties, setProperties] = React.useState(initProperties);
-  const portal = usePortal(document.body);
-
-  const onClickBackground = React.useCallback((event: React.MouseEvent) => {
-    if (event.target === event.currentTarget) {
-      event.preventDefault();
-      props.onCancel();
-    }
-  }, [props.onCancel]);
 
   const onClickConfirm = React.useCallback((event: React.MouseEvent) => {
     props.onConfirm({
@@ -57,29 +49,23 @@ export function MetaEditExporter(props: MetaEditExporterProps) {
   });
 
   // Render
-  return ReactDOM.createPortal((
-    <div
+  return (
+    <FullscreenOverlay
+      onCancel={props.onCancel}
       className='meta-edit-exporter'
-      onClick={onClickBackground}>
-      <div
-        className='meta-edit-exporter__outer simple-center'
-        onClick={onClickBackground}>
-        <div className='meta-edit-exporter__inner simple-scroll simple-center__inner simple-center__vertical-inner'>
-          {/* Content */}
-          <p className='meta-edit-exporter__title'>{strings.misc.exportMetaEditTitle}</p>
-          <p>{strings.misc.exportMetaEditDesc}</p>
-          <div className='meta-edit-exporter__rows'>
-            {propertiesElements}
-          </div>
-          <input
-            type='button'
-            className='simple-button'
-            value='Export'
-            onClick={onClickConfirm} />
-        </div>
+      classNameInner='simple-scroll'>
+      <p className='meta-edit-exporter__title'>{strings.misc.exportMetaEditTitle}</p>
+      <p>{strings.misc.exportMetaEditDesc}</p>
+      <div className='meta-edit-exporter__rows'>
+        {propertiesElements}
       </div>
-    </div>
-  ), portal);
+      <input
+        type='button'
+        className='simple-button'
+        value='Export'
+        onClick={onClickConfirm} />
+    </FullscreenOverlay>
+  );
 }
 
 function initProperties(): MetaEditFlags {
@@ -133,21 +119,4 @@ function getGameString(key: keyof MetaEditFlags, strings: LangContainer): string
     case 'language':            return strings.browse.language;
     case 'library':             return strings.browse.library;
   }
-}
-
-function usePortal(parent: HTMLElement) {
-  const element = React.useRef<HTMLDivElement | null>(null);
-
-  if (!element.current) {
-    element.current = document.createElement('div');
-  }
-
-  React.useEffect(() => {
-    if (element.current) { parent.appendChild(element.current); }
-    return () => {
-      if (element.current) { element.current.remove(); }
-    };
-  });
-
-  return element.current;
 }
