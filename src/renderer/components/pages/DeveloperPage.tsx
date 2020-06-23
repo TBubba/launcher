@@ -1,7 +1,7 @@
 import { Game } from '@database/entity/Game';
 import { Playlist } from '@database/entity/Playlist';
 import { getGamePath } from '@renderer/Util';
-import { BackIn, BackOut, GameMetadataSyncResponse, GetAllGamesResponseData, GetExecData, ImportMetaEditResponseData, ImportPlaylistData, SaveLegacyPlatformData, ServiceChangeData, TagPrimaryFixData, TagPrimaryFixResponse, WrappedResponse } from '@shared/back/types';
+import { BackIn, BackOut, GameMetadataSyncResponse, GenerateChangelogData, GenerateChangelogResponseData, GetAllGamesResponseData, GetExecData, ImportMetaEditResponseData, ImportPlaylistData, SaveLegacyPlatformData, ServiceChangeData, TagPrimaryFixData, TagPrimaryFixResponse, WrappedResponse } from '@shared/back/types';
 import { IAppConfigData } from '@shared/config/interfaces';
 import { LOGOS, SCREENSHOTS } from '@shared/constants';
 import { ExecMapping } from '@shared/interfaces';
@@ -14,6 +14,7 @@ import * as React from 'react';
 import { promisify } from 'util';
 import { LangContext } from '../../util/lang';
 import { validateSemiUUID } from '../../util/uuid';
+import { ChangelogGenerator, ChangelogGeneratorConfirmData } from '../ChangelogGenerator';
 import { LogData } from '../LogData';
 import { ServiceBox } from '../ServiceBox';
 import { SimpleButton } from '../SimpleButton';
@@ -33,6 +34,8 @@ export type DeveloperPageProps = {
 type DeveloperPageState = {
   /** Text of the log. */
   text: string;
+  /** If the "Changelog Generator Popup" is open. */
+  changelogGeneratorOpen: boolean;
 };
 
 export interface DeveloperPage {
@@ -49,6 +52,7 @@ export class DeveloperPage extends React.Component<DeveloperPageProps, Developer
     super(props);
     this.state = {
       text: '',
+      changelogGeneratorOpen: false,
     };
   }
 
@@ -132,6 +136,10 @@ export class DeveloperPage extends React.Component<DeveloperPageProps, Developer
               value={strings.importMetaEdits}
               title={strings.importMetaEditsDesc}
               onClick={this.onImportMetaEdits} />
+            <SimpleButton
+              value={strings.generateChangelog}
+              title={strings.generateChangelogDesc}
+              onClick={this.onOpenChangelogGenerator} />
           </div>
           {/* -- Services -- */}
           <h1 className='developer-page__services-title'>{strings.servicesHeader}</h1>
@@ -143,6 +151,12 @@ export class DeveloperPage extends React.Component<DeveloperPageProps, Developer
           ))) : (
             <p>{strings.servicesMissing}</p>
           )}
+          {/* Changelog Generator Popup */}
+          { this.state.changelogGeneratorOpen ? (
+            <ChangelogGenerator
+              onCancel={this.onCancelChangelogGenerator}
+              onConfirm={this.onConfirmChangelogGenerator} />
+          ) : undefined }
         </div>
       </div>
     );
@@ -320,6 +334,32 @@ export class DeveloperPage extends React.Component<DeveloperPageProps, Developer
       });
     });
   };
+
+  // Changelog Generator
+
+  onOpenChangelogGenerator = (): void => {
+    this.setState({ changelogGeneratorOpen: true });
+  }
+
+  onCancelChangelogGenerator = (): void => {
+    this.setState({ changelogGeneratorOpen: false });
+  }
+
+  onConfirmChangelogGenerator = (data: ChangelogGeneratorConfirmData): void => {
+    this.setState({
+      text: 'Generating changelog...',
+      changelogGeneratorOpen: false,
+    });
+
+    setTimeout(async () => {
+      const res = await window.Shared.back.sendP<GenerateChangelogResponseData, GenerateChangelogData>(BackIn.GENERATE_CHANGELOG, {
+        start: data.startDate,
+        end: data.endDate + ' 23:59:59.999',
+      });
+
+      this.setState({ text: res.data || '' });
+    });
+  }
 
   static contextType = LangContext;
 }

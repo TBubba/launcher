@@ -87,6 +87,8 @@ export enum BackIn {
   // Meta edits
   EXPORT_META_EDIT,
   IMPORT_META_EDITS,
+  /** Generate a changelog. */
+  GENERATE_CHANGELOG,
   // Misc
   UPLOAD_LOG,
 }
@@ -588,3 +590,11 @@ export type MetaEditGameNotFound = {
 }
 
 export type UploadLogResponse = string | undefined;
+
+export type GenerateChangelogData = {
+  // SQLite time strings ( see: https://www.sqlite.org/lang_datefunc.html )
+  start: string;
+  end: string;
+}
+
+export type GenerateChangelogResponseData = string;

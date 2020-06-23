@@ -36,7 +36,7 @@ export function MetaEditExporter(props: MetaEditExporterProps) {
     return (
       <div
         key={key}
-        className='meta-edit-exporter__row'
+        className='some-box-thing__row'
         onClick={() => setProperties({ ...properties, [key]: !val })}>
         <input
           type='checkbox'
@@ -52,11 +52,10 @@ export function MetaEditExporter(props: MetaEditExporterProps) {
   return (
     <FullscreenOverlay
       onCancel={props.onCancel}
-      className='meta-edit-exporter'
-      classNameInner='simple-scroll'>
+      classNameInner='meta-edit-exporter some-box-thing simple-scroll'>
       <p className='meta-edit-exporter__title'>{strings.misc.exportMetaEditTitle}</p>
       <p>{strings.misc.exportMetaEditDesc}</p>
-      <div className='meta-edit-exporter__rows'>
+      <div className='some-box-thing__rows'>
         {propertiesElements}
       </div>
       <input

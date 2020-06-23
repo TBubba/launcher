@@ -389,27 +389,51 @@ body {
 }
 
 
-/* ------ Meta Edit Exporter ------ */
-.meta-edit-exporter {
+/* ------ Some Box Thing ------ */
+.some-box-thing {
+  width: fit-content;
+  margin: auto;
+  padding: 1rem;
+  overflow: auto;
 }
-.meta-edit-exporter * {
+.some-box-thing * {
   user-select: none;
 }
-.meta-edit-exporter__title {
+.some-box-thing__title {
+  width: max-content;
   font-size: 1.2rem;
   margin-bottom: 0.25rem;
 }
-.meta-edit-exporter__rows {
+.some-box-thing__rows {
   width: fit-content;
   margin: 0.5rem auto;
   text-align: left;
 }
+.some-box-thing__rows--error {
+  padding: 0.25rem;
+  border: 1px solid;
+}
+.some-box-thing__rows--error .some-box-thing__row {
+  width: fit-content;
+}
+.some-box-thing__row-break { /* used instead of <br/> */
+  height: 0.25rem;
+}
+
+
+/* ------ Meta Edit Exporter ------ */
 .meta-edit-exporter__row-checkbox {
   margin-right: 0.45rem;
   vertical-align: middle;
 }
 .meta-edit-exporter__row-title {
   display: inline;
+}
+
+
+/* ------ Changelog Generator ------ */
+.changelog-generator {
+  width: min-content;
 }
 
 

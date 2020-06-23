@@ -380,6 +380,18 @@ export namespace GameManager {
 
     return chunkedFindByIds(gameIds);
   }
+
+  export async function findGamesForChangelogGenerator(start: string, end: string): Promise<Pick<Game, 'library' | 'platform' | 'title'>[]> {
+    const gameRepository = getManager().getRepository(Game);
+
+    const results = await gameRepository.createQueryBuilder('game')
+      .where('game.dateAdded BETWEEN :start AND :end', { start, end })
+      .select('game.library as library, game.platform as platform, game.title as title')
+      .orderBy('library, platform, title')
+      .getRawMany();
+
+    return results;
+  }
 }
 
 async function chunkedFindByIds(gameIds: string[]): Promise<Game[]> {

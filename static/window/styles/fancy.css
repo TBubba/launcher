@@ -294,8 +294,18 @@ body {
 }
 
 
+/* ------ Some Box Thing ------ */
+.some-box-thing {
+  border-radius: 0.25rem;
+  background-color: var(--layout__quaternary-background);
+}
+.some-box-thing__rows--error {
+  border-color: var(--layout__warning-bright-color);
+}
+
+
 /* ------ Meta Edit Exporter ------ */
-.meta-edit-exporter__row:hover {
+.meta-edit-exporter .some-box-thing__row:hover {
   background-color: var(--layout__secondary-background);
 }
 

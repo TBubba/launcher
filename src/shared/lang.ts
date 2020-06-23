@@ -156,6 +156,8 @@ const langTemplate = {
     'forceGameMetaSyncDesc', // @NOT_ASSIGNED
     'importMetaEdits',
     'importMetaEditsDesc',
+    'generateChangelog',
+    'generateChangelogDesc',
     'servicesHeader',
     'servicesMissing',
     'running',
@@ -374,6 +376,11 @@ const langTemplate = {
     'complete',
     'exportMetaEditTitle',
     'exportMetaEditDesc',
+    'generateChangelogTitle',
+    'generateChangelogStartDate',
+    'generateChangelogEndDate',
+    'generateChangelogConfirm',
+    'generateChangelogEndBeforeStartError',
   ] as const,
   menu: [
     'viewThumbnailInFolder',
